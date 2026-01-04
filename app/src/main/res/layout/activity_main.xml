@@ -9,37 +9,35 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Listening indicator overlay -->
-    <FrameLayout
-        android:id="@+id/listeningIndicator"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#80000000"
+    <!-- Pulsing circle around voice button -->
+    <View
+        android:id="@+id/pulsingCircle"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:background="@drawable/pulse_circle"
         android:visibility="gone"
-        android:clickable="true"
-        android:focusable="true">
-        
-        <FrameLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center">
-            
-            <View
-                android:id="@+id/pulsingCircle"
-                android:layout_width="120dp"
-                android:layout_height="120dp"
-                android:layout_gravity="center"
-                android:background="@drawable/listening_pulse"
-                android:alpha="0.6" />
-            
-            <ImageView
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:layout_gravity="center"
-                android:src="@android:drawable/ic_btn_speak_now"
-                android:contentDescription="Listening" />
-        </FrameLayout>
-    </FrameLayout>
+        android:elevation="2dp" />
+
+    <!-- Speech transcription text -->
+    <TextView
+        android:id="@+id/speechText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="88dp"
+        android:layout_marginBottom="24dp"
+        android:maxWidth="300dp"
+        android:maxLines="3"
+        android:ellipsize="end"
+        android:textSize="14sp"
+        android:textColor="#FFFFFF"
+        android:background="#CC000000"
+        android:padding="12dp"
+        android:visibility="gone"
+        android:elevation="16dp"
+        android:translationZ="16dp" />
 
     <!-- Floating Action Button for Voice Input -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton

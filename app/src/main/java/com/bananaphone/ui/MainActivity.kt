@@ -13,6 +13,9 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.bananaphone.R
 import com.bananaphone.core.llm.OpenRouterClient
@@ -33,8 +36,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var speechHelper: SpeechRecognitionHelper
     private lateinit var voiceButton: FloatingActionButton
-    private lateinit var listeningIndicator: View
     private lateinit var pulsingCircle: View
+    private lateinit var speechText: android.widget.TextView
     private var pulseAnimator: ObjectAnimator? = null
     private val openRouterClient = OpenRouterClient()
     private val androidInterface = AndroidInterface()
@@ -57,11 +60,20 @@ class MainActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Enable full screen mode
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+        
         setContentView(R.layout.activity_main)
         
         voiceButton = findViewById(R.id.voiceButton)
-        listeningIndicator = findViewById(R.id.listeningIndicator)
         pulsingCircle = findViewById(R.id.pulsingCircle)
+        speechText = findViewById(R.id.speechText)
         
         setupSpeechRecognition()
         setupWebView()
@@ -75,14 +87,20 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun setupVoiceButton() {
-        voiceButton.setOnClickListener {
-            if (isListening) {
-                // If already listening, cancel
-                speechHelper.cancel()
-                hideListeningIndicator()
-            } else {
-                // Start listening
-                startListening()
+        voiceButton.setOnTouchListener { view, event ->
+            when (event.action) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    // Start listening when button is pressed
+                    startListening()
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP,
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    // Stop listening when button is released
+                    stopListening()
+                    true
+                }
+                else -> false
             }
         }
     }
@@ -97,21 +115,56 @@ class MainActivity : AppCompatActivity() {
             cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
             allowFileAccess = false
             allowContentAccess = false
+            // Allow mixed content (HTTP resources on HTTPS pages) to prevent ORB blocking
+            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            // Allow universal access from file URLs (needed for cross-origin resources)
+            allowUniversalAccessFromFileURLs = true
+            allowFileAccessFromFileURLs = true
         }
         
         // Add JavaScript interface for microphone button
         webView.addJavascriptInterface(androidInterface, "AndroidInterface")
         
-        // WebView client for error handling
+        // WebView client for error handling and resource loading
         webView.webViewClient = object : android.webkit.WebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: android.webkit.WebResourceRequest?
+            ): android.webkit.WebResourceResponse? {
+                // Return null to allow default handling of all resource requests
+                // This prevents ORB from blocking cross-origin resources
+                return null
+            }
+            
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: android.webkit.WebResourceRequest?
+            ): Boolean {
+                // Prevent navigation to any URL - keep content in WebView
+                // Only allow resource loading (CSS, JS, images, etc.)
+                val url = request?.url?.toString() ?: return false
+                // Block navigation to the base URL or any navigation attempts
+                if (request.isForMainFrame && !url.startsWith("data:") && !url.startsWith("about:")) {
+                    Log.d(TAG, "Blocked navigation attempt to: $url")
+                    return true // Block the navigation
+                }
+                return false // Allow resource loading
+            }
+            
             override fun onReceivedError(
                 view: WebView?,
                 request: android.webkit.WebResourceRequest?,
                 error: android.webkit.WebResourceError?
             ) {
                 super.onReceivedError(view, request, error)
-                Log.e(TAG, "WebView error: ${error?.description}")
-                showError("Failed to load content: ${error?.description}")
+                // Only show errors for main frame requests, not sub-resources
+                if (request?.isForMainFrame == true) {
+                    Log.e(TAG, "WebView error: ${error?.description}")
+                    showError("Failed to load content: ${error?.description}")
+                } else {
+                    // Log sub-resource errors but don't show popup
+                    Log.w(TAG, "Sub-resource error: ${error?.description} for ${request?.url}")
+                }
             }
         }
     }
@@ -127,7 +180,7 @@ class MainActivity : AppCompatActivity() {
                 reader.readText()
             }
             
-            webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+            webView.loadDataWithBaseURL("about:blank", html, "text/html", "UTF-8", null)
         } catch (e: Exception) {
             Log.e(TAG, "Error loading initial UI", e)
             showError("Failed to load initial UI")
@@ -159,7 +212,7 @@ class MainActivity : AppCompatActivity() {
                 html = html.replace("<img class=\"banana\" src=\"BANANA_ICON_PLACEHOLDER\" alt=\"Loading...\" />", "")
             }
             
-            webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+            webView.loadDataWithBaseURL("about:blank", html, "text/html", "UTF-8", null)
         } catch (e: Exception) {
             Log.e(TAG, "Error loading loading animation", e)
         }
@@ -172,7 +225,7 @@ class MainActivity : AppCompatActivity() {
         }
         
         isListening = true
-        showListeningIndicator()
+        startPulseAnimation()
         updateButtonState()
         
         speechHelper.startListening(object : SpeechRecognitionCallback {
@@ -182,29 +235,42 @@ class MainActivity : AppCompatActivity() {
             
             override fun onSpeechBeginning() {
                 Log.d(TAG, "User started speaking")
-                // Hide indicator when user starts speaking
-                hideListeningIndicator()
+                // Keep indicator visible while holding
             }
             
             override fun onSpeechEnd() {
                 Log.d(TAG, "Speech recognition ended")
-                isListening = false
-                hideListeningIndicator()
-                updateButtonState()
+                // Don't update state here - wait for result or manual stop
             }
             
             override fun onSpeechResult(text: String) {
                 Log.d(TAG, "Speech recognized: $text")
+                // Reset state after getting result
                 isListening = false
-                hideListeningIndicator()
+                stopPulseAnimation()
                 updateButtonState()
-                processUserRequest(text)
+                // Process result when button is released - silence is fine
+                if (text.isNotBlank()) {
+                    // Show transcribed text
+                    runOnUiThread {
+                        speechText.text = text
+                        speechText.visibility = View.VISIBLE
+                        speechText.bringToFront()
+                    }
+                    processUserRequest(text)
+                } else {
+                    // Hide text if blank
+                    runOnUiThread {
+                        speechText.visibility = View.GONE
+                    }
+                }
+                // If text is blank, just silently return - user may have held button without speaking
             }
             
             override fun onSpeechError(error: Int, message: String) {
                 Log.e(TAG, "Speech recognition error: $message")
                 isListening = false
-                hideListeningIndicator()
+                stopPulseAnimation()
                 updateButtonState()
                 
                 when (error) {
@@ -215,12 +281,10 @@ class MainActivity : AppCompatActivity() {
                     android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> {
                         Toast.makeText(this@MainActivity, "Network error. Please try again.", Toast.LENGTH_SHORT).show()
                     }
+                    // Silently ignore ERROR_NO_MATCH and ERROR_SPEECH_TIMEOUT - user controls when to stop
                     android.speech.SpeechRecognizer.ERROR_NO_MATCH,
                     android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                        // Don't show toast for timeout - it's expected behavior
-                        if (error != android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                            Toast.makeText(this@MainActivity, "No speech detected. Please try again.", Toast.LENGTH_SHORT).show()
-                        }
+                        // No action needed - silence is fine with hold-to-talk
                     }
                     else -> {
                         Toast.makeText(this@MainActivity, "Error: $message", Toast.LENGTH_SHORT).show()
@@ -230,34 +294,35 @@ class MainActivity : AppCompatActivity() {
         })
     }
     
-    private fun showListeningIndicator() {
-        listeningIndicator.visibility = View.VISIBLE
-        startPulseAnimation()
-    }
-    
-    private fun hideListeningIndicator() {
-        listeningIndicator.visibility = View.GONE
-        stopPulseAnimation()
+    private fun stopListening() {
+        if (isListening) {
+            // Stop listening - this will trigger the recognizer to process and return results
+            speechHelper.stopListening()
+            // Don't reset state here - wait for onSpeechResult or onSpeechError
+            // The indicator will be hidden when we get the result
+        }
     }
     
     private fun startPulseAnimation() {
         stopPulseAnimation() // Stop any existing animation
         
-        pulseAnimator = ObjectAnimator.ofFloat(pulsingCircle, "scaleX", 1f, 1.5f, 1f).apply {
+        pulsingCircle.visibility = View.VISIBLE
+        
+        pulseAnimator = ObjectAnimator.ofFloat(pulsingCircle, "scaleX", 1f, 1.4f, 1f).apply {
             duration = 1000
             repeatCount = ValueAnimator.INFINITE
             repeatMode = ValueAnimator.REVERSE
             interpolator = LinearInterpolator()
         }
         
-        val scaleYAnimator = ObjectAnimator.ofFloat(pulsingCircle, "scaleY", 1f, 1.5f, 1f).apply {
+        val scaleYAnimator = ObjectAnimator.ofFloat(pulsingCircle, "scaleY", 1f, 1.4f, 1f).apply {
             duration = 1000
             repeatCount = ValueAnimator.INFINITE
             repeatMode = ValueAnimator.REVERSE
             interpolator = LinearInterpolator()
         }
         
-        val alphaAnimator = ObjectAnimator.ofFloat(pulsingCircle, "alpha", 0.6f, 0.2f, 0.6f).apply {
+        val alphaAnimator = ObjectAnimator.ofFloat(pulsingCircle, "alpha", 0.5f, 0.1f, 0.5f).apply {
             duration = 1000
             repeatCount = ValueAnimator.INFINITE
             repeatMode = ValueAnimator.REVERSE
@@ -272,9 +337,10 @@ class MainActivity : AppCompatActivity() {
     private fun stopPulseAnimation() {
         pulseAnimator?.cancel()
         pulseAnimator = null
+        pulsingCircle.visibility = View.GONE
         pulsingCircle.scaleX = 1f
         pulsingCircle.scaleY = 1f
-        pulsingCircle.alpha = 0.6f
+        pulsingCircle.alpha = 0.5f
     }
     
     private fun updateButtonState() {
@@ -290,10 +356,12 @@ class MainActivity : AppCompatActivity() {
     private fun processUserRequest(text: String) {
         if (text.isBlank()) {
             Toast.makeText(this, "No speech detected", Toast.LENGTH_SHORT).show()
+            speechText.visibility = View.GONE
             return
         }
         
         showLoadingAnimation()
+        // Keep speech text visible on the loading screen
         
         lifecycleScope.launch {
             val result = openRouterClient.generateHTML(text)
@@ -309,8 +377,10 @@ class MainActivity : AppCompatActivity() {
                             .removeSuffix("```")
                             .trim()
                         
-                        webView.loadDataWithBaseURL(null, cleanHtml, "text/html", "UTF-8", null)
+                        webView.loadDataWithBaseURL("about:blank", cleanHtml, "text/html", "UTF-8", null)
                         Log.d(TAG, "Successfully loaded generated HTML")
+                        // Hide speech text after HTML is loaded
+                        speechText.visibility = View.GONE
                     } catch (e: Exception) {
                         Log.e(TAG, "Error loading HTML into WebView", e)
                         showError("Failed to load generated content")
@@ -393,7 +463,7 @@ class MainActivity : AppCompatActivity() {
             </html>
         """.trimIndent()
         
-        webView.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null)
+        webView.loadDataWithBaseURL("about:blank", errorHtml, "text/html", "UTF-8", null)
     }
     
     override fun onPause() {
@@ -401,7 +471,7 @@ class MainActivity : AppCompatActivity() {
         webView.onPause()
         speechHelper.cancel()
         isListening = false
-        hideListeningIndicator()
+        stopPulseAnimation()
         updateButtonState()
     }
     

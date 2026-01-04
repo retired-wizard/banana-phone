@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Building your app...</title>
+    <title>Going bananas!</title>
     <style>
         * {
             margin: 0;
@@ -13,107 +13,161 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FFEB3B 0%, #FFC107 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 8s ease infinite;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             overflow: hidden;
+            position: relative;
         }
+        
+        @keyframes gradientShift {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+        
+        /* Floating particles */
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            animation: float 15s infinite ease-in-out;
+        }
+        
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0) translateX(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.6;
+            }
+            90% {
+                opacity: 0.6;
+            }
+            50% {
+                transform: translateY(-100px) translateX(50px);
+                opacity: 1;
+            }
+        }
+        
+        .particle:nth-child(1) { left: 10%; animation-delay: 0s; animation-duration: 12s; }
+        .particle:nth-child(2) { left: 20%; animation-delay: 2s; animation-duration: 14s; }
+        .particle:nth-child(3) { left: 30%; animation-delay: 4s; animation-duration: 16s; }
+        .particle:nth-child(4) { left: 40%; animation-delay: 1s; animation-duration: 13s; }
+        .particle:nth-child(5) { left: 50%; animation-delay: 3s; animation-duration: 15s; }
+        .particle:nth-child(6) { left: 60%; animation-delay: 5s; animation-duration: 17s; }
+        .particle:nth-child(7) { left: 70%; animation-delay: 2.5s; animation-duration: 14s; }
+        .particle:nth-child(8) { left: 80%; animation-delay: 4.5s; animation-duration: 16s; }
+        .particle:nth-child(9) { left: 90%; animation-delay: 1.5s; animation-duration: 13s; }
         
         .container {
             text-align: center;
             color: white;
+            z-index: 10;
+            position: relative;
         }
         
         .banana-container {
             position: relative;
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 30px;
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         
         .banana {
-            position: absolute;
-            width: 60px;
-            height: 100px;
-            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
-            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            animation: rotate 2s linear infinite;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            width: 140px;
+            height: 140px;
+            object-fit: contain;
+            animation: bananaBounce 1.2s ease-in-out infinite;
+            filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.3));
         }
         
-        .banana::before {
-            content: '';
-            position: absolute;
-            width: 40px;
-            height: 60px;
-            background: linear-gradient(135deg, #ffed4e 0%, #ffd700 100%);
-            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-            top: -10px;
-            left: 10px;
-            opacity: 0.8;
-        }
-        
-        .banana::after {
-            content: '';
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            background: #8b6914;
-            border-radius: 50%;
-            top: 15px;
-            left: 26px;
-        }
-        
-        @keyframes rotate {
-            0% {
-                transform: translate(-50%, -50%) rotate(0deg);
+        @keyframes bananaBounce {
+            0%, 100% {
+                transform: translateY(0) scale(1) rotate(-5deg);
             }
-            100% {
-                transform: translate(-50%, -50%) rotate(360deg);
+            50% {
+                transform: translateY(-20px) scale(1.08) rotate(5deg);
+            }
+        }
+        
+        /* Glowing ring around banana */
+        .glow-ring {
+            position: absolute;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            animation: pulseRing 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulseRing {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.6;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.2;
             }
         }
         
         .text {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 10px;
-            animation: pulse 2s ease-in-out infinite;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            animation: textPulse 2s ease-in-out infinite;
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            letter-spacing: 0.5px;
         }
         
-        .subtext {
-            font-size: 16px;
-            opacity: 0.9;
-            animation: fade 3s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
+        @keyframes textPulse {
             0%, 100% {
                 opacity: 1;
                 transform: scale(1);
             }
             50% {
-                opacity: 0.8;
-                transform: scale(1.05);
+                opacity: 0.85;
+                transform: scale(1.02);
             }
         }
         
-        @keyframes fade {
+        .subtext {
+            font-size: 16px;
+            opacity: 0.95;
+            animation: fadeInOut 3s ease-in-out infinite;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            font-weight: 400;
+        }
+        
+        @keyframes fadeInOut {
             0%, 100% {
-                opacity: 0.9;
+                opacity: 0.95;
             }
             50% {
-                opacity: 0.6;
+                opacity: 0.65;
             }
         }
         
         .dots {
             display: inline-block;
-            width: 20px;
+            width: 30px;
             margin-left: 5px;
         }
         
@@ -133,16 +187,57 @@
                 content: '...';
             }
         }
+        
+        /* Progress indicator */
+        .progress-bar {
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin: 30px auto 0;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.4));
+            border-radius: 2px;
+            animation: progressMove 2s ease-in-out infinite;
+            width: 60%;
+        }
+        
+        @keyframes progressMove {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(250%);
+            }
+        }
     </style>
 </head>
 <body>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    
     <div class="container">
         <div class="banana-container">
-            <div class="banana"></div>
+            <div class="glow-ring"></div>
+            <img class="banana" src="BANANA_ICON_PLACEHOLDER" alt="Loading..." />
         </div>
-        <div class="text">Building your app<span class="dots"></span></div>
-        <div class="subtext">This may take a moment</div>
+        <div class="text">Going bananas<span class="dots"></span></div>
+        <div class="subtext" style="display: none;"></div>
+        <div class="progress-bar">
+            <div class="progress-fill"></div>
+        </div>
     </div>
 </body>
 </html>
-
