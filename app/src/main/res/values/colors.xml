@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="voice_button_color">#FFC107</color>
+    <color name="voice_button_listening">#FF9800</color>
+</resources>
+

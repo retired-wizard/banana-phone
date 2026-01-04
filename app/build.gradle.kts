@@ -61,6 +61,9 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
     
+    // Material Design
+    implementation("com.google.android.material:material:1.11.0")
+    
     // WebView
     implementation("androidx.webkit:webkit:1.9.0")
     

@@ -5,12 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.core.content.ContextCompat
 
 private const val TAG = "SpeechRecognitionHelper"
+private const val TIMEOUT_MS = 10000L // 10 seconds
 
 /**
  * Callback interface for speech recognition events
@@ -20,6 +23,7 @@ interface SpeechRecognitionCallback {
     fun onSpeechError(error: Int, message: String)
     fun onSpeechStart()
     fun onSpeechEnd()
+    fun onSpeechBeginning() // Called when user starts speaking
 }
 
 /**
@@ -29,6 +33,9 @@ class SpeechRecognitionHelper(private val context: Context) {
     
     private var speechRecognizer: SpeechRecognizer? = null
     private var callback: SpeechRecognitionCallback? = null
+    private var timeoutHandler: Handler? = null
+    private var timeoutRunnable: Runnable? = null
+    private var hasStartedSpeaking = false
     
     /**
      * Check if RECORD_AUDIO permission is granted
@@ -65,6 +72,10 @@ class SpeechRecognitionHelper(private val context: Context) {
         }
         
         this.callback = callback
+        hasStartedSpeaking = false
+        
+        // Cancel any existing timeout
+        cancelTimeout()
         
         try {
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
@@ -82,6 +93,9 @@ class SpeechRecognitionHelper(private val context: Context) {
             speechRecognizer?.startListening(intent)
             Log.d(TAG, "Started listening for speech")
             callback.onSpeechStart()
+            
+            // Start timeout timer
+            startTimeout()
         } catch (e: Exception) {
             Log.e(TAG, "Error starting speech recognition", e)
             callback.onSpeechError(SpeechRecognizer.ERROR_CLIENT, e.message ?: "Unknown error")
@@ -92,6 +106,7 @@ class SpeechRecognitionHelper(private val context: Context) {
      * Stop listening for speech input
      */
     fun stopListening() {
+        cancelTimeout()
         speechRecognizer?.stopListening()
         Log.d(TAG, "Stopped listening for speech")
     }
@@ -100,6 +115,7 @@ class SpeechRecognitionHelper(private val context: Context) {
      * Cancel speech recognition
      */
     fun cancel() {
+        cancelTimeout()
         speechRecognizer?.cancel()
         Log.d(TAG, "Cancelled speech recognition")
     }
@@ -108,10 +124,38 @@ class SpeechRecognitionHelper(private val context: Context) {
      * Release resources
      */
     fun destroy() {
+        cancelTimeout()
         speechRecognizer?.destroy()
         speechRecognizer = null
         callback = null
         Log.d(TAG, "Released speech recognition resources")
+    }
+    
+    /**
+     * Start timeout timer - will cancel listening after TIMEOUT_MS if no speech detected
+     */
+    private fun startTimeout() {
+        timeoutHandler = Handler(Looper.getMainLooper())
+        timeoutRunnable = Runnable {
+            if (!hasStartedSpeaking) {
+                Log.d(TAG, "Timeout reached - no speech detected")
+                stopListening()
+                callback?.onSpeechError(
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
+                    "No speech detected within timeout period"
+                )
+            }
+        }
+        timeoutHandler?.postDelayed(timeoutRunnable!!, TIMEOUT_MS)
+    }
+    
+    /**
+     * Cancel timeout timer
+     */
+    private fun cancelTimeout() {
+        timeoutRunnable?.let { timeoutHandler?.removeCallbacks(it) }
+        timeoutHandler = null
+        timeoutRunnable = null
     }
     
     private fun createRecognitionListener(): RecognitionListener {
@@ -122,6 +166,12 @@ class SpeechRecognitionHelper(private val context: Context) {
             
             override fun onBeginningOfSpeech() {
                 Log.d(TAG, "Beginning of speech detected")
+                hasStartedSpeaking = true
+                // Cancel timeout since user has started speaking
+                cancelTimeout()
+                // Stop listening - we'll wait for the result
+                speechRecognizer?.stopListening()
+                callback?.onSpeechBeginning()
             }
             
             override fun onRmsChanged(rmsdB: Float) {

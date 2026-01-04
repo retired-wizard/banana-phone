@@ -1,9 +1,13 @@
 package com.bananaphone.ui
 
 import android.Manifest
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.view.animation.LinearInterpolator
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,9 +18,13 @@ import com.bananaphone.R
 import com.bananaphone.core.llm.OpenRouterClient
 import com.bananaphone.core.speech.SpeechRecognitionCallback
 import com.bananaphone.core.speech.SpeechRecognitionHelper
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import android.graphics.BitmapFactory
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 
 private const val TAG = "MainActivity"
 
@@ -24,8 +32,13 @@ class MainActivity : AppCompatActivity() {
     
     private lateinit var webView: WebView
     private lateinit var speechHelper: SpeechRecognitionHelper
+    private lateinit var voiceButton: FloatingActionButton
+    private lateinit var listeningIndicator: View
+    private lateinit var pulsingCircle: View
+    private var pulseAnimator: ObjectAnimator? = null
     private val openRouterClient = OpenRouterClient()
     private val androidInterface = AndroidInterface()
+    private var isListening = false
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -46,13 +59,31 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         
+        voiceButton = findViewById(R.id.voiceButton)
+        listeningIndicator = findViewById(R.id.listeningIndicator)
+        pulsingCircle = findViewById(R.id.pulsingCircle)
+        
         setupSpeechRecognition()
         setupWebView()
+        setupVoiceButton()
         loadInitialUI()
         
         // Request microphone permission if not granted
         if (!speechHelper.hasPermission()) {
             requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+    
+    private fun setupVoiceButton() {
+        voiceButton.setOnClickListener {
+            if (isListening) {
+                // If already listening, cancel
+                speechHelper.cancel()
+                hideListeningIndicator()
+            } else {
+                // Start listening
+                startListening()
+            }
         }
     }
     
@@ -106,9 +137,28 @@ class MainActivity : AppCompatActivity() {
     private fun showLoadingAnimation() {
         try {
             val inputStream = resources.openRawResource(R.raw.loading_animation)
-            val html = BufferedReader(InputStreamReader(inputStream)).use { reader ->
+            var html = BufferedReader(InputStreamReader(inputStream)).use { reader ->
                 reader.readText()
             }
+            
+            // Load banana icon and convert to base64
+            try {
+                val bitmap = BitmapFactory.decodeResource(resources, R.drawable.banana_icon)
+                
+                val outputStream = ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, outputStream)
+                val byteArray = outputStream.toByteArray()
+                val base64Icon = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                val dataUri = "data:image/png;base64,$base64Icon"
+                
+                // Replace placeholder with actual icon
+                html = html.replace("BANANA_ICON_PLACEHOLDER", dataUri)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not load banana icon for loading animation", e)
+                // Fallback: remove the img tag if icon loading fails
+                html = html.replace("<img class=\"banana\" src=\"BANANA_ICON_PLACEHOLDER\" alt=\"Loading...\" />", "")
+            }
+            
             webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
         } catch (e: Exception) {
             Log.e(TAG, "Error loading loading animation", e)
@@ -121,23 +171,41 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
+        isListening = true
+        showListeningIndicator()
+        updateButtonState()
+        
         speechHelper.startListening(object : SpeechRecognitionCallback {
             override fun onSpeechStart() {
                 Log.d(TAG, "Speech recognition started")
-                // Could update UI to show listening state
+            }
+            
+            override fun onSpeechBeginning() {
+                Log.d(TAG, "User started speaking")
+                // Hide indicator when user starts speaking
+                hideListeningIndicator()
             }
             
             override fun onSpeechEnd() {
                 Log.d(TAG, "Speech recognition ended")
+                isListening = false
+                hideListeningIndicator()
+                updateButtonState()
             }
             
             override fun onSpeechResult(text: String) {
                 Log.d(TAG, "Speech recognized: $text")
+                isListening = false
+                hideListeningIndicator()
+                updateButtonState()
                 processUserRequest(text)
             }
             
             override fun onSpeechError(error: Int, message: String) {
                 Log.e(TAG, "Speech recognition error: $message")
+                isListening = false
+                hideListeningIndicator()
+                updateButtonState()
                 
                 when (error) {
                     android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
@@ -147,8 +215,12 @@ class MainActivity : AppCompatActivity() {
                     android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> {
                         Toast.makeText(this@MainActivity, "Network error. Please try again.", Toast.LENGTH_SHORT).show()
                     }
-                    android.speech.SpeechRecognizer.ERROR_NO_MATCH -> {
-                        Toast.makeText(this@MainActivity, "No speech detected. Please try again.", Toast.LENGTH_SHORT).show()
+                    android.speech.SpeechRecognizer.ERROR_NO_MATCH,
+                    android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
+                        // Don't show toast for timeout - it's expected behavior
+                        if (error != android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                            Toast.makeText(this@MainActivity, "No speech detected. Please try again.", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     else -> {
                         Toast.makeText(this@MainActivity, "Error: $message", Toast.LENGTH_SHORT).show()
@@ -156,6 +228,63 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+    
+    private fun showListeningIndicator() {
+        listeningIndicator.visibility = View.VISIBLE
+        startPulseAnimation()
+    }
+    
+    private fun hideListeningIndicator() {
+        listeningIndicator.visibility = View.GONE
+        stopPulseAnimation()
+    }
+    
+    private fun startPulseAnimation() {
+        stopPulseAnimation() // Stop any existing animation
+        
+        pulseAnimator = ObjectAnimator.ofFloat(pulsingCircle, "scaleX", 1f, 1.5f, 1f).apply {
+            duration = 1000
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = LinearInterpolator()
+        }
+        
+        val scaleYAnimator = ObjectAnimator.ofFloat(pulsingCircle, "scaleY", 1f, 1.5f, 1f).apply {
+            duration = 1000
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = LinearInterpolator()
+        }
+        
+        val alphaAnimator = ObjectAnimator.ofFloat(pulsingCircle, "alpha", 0.6f, 0.2f, 0.6f).apply {
+            duration = 1000
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = LinearInterpolator()
+        }
+        
+        pulseAnimator?.start()
+        scaleYAnimator.start()
+        alphaAnimator.start()
+    }
+    
+    private fun stopPulseAnimation() {
+        pulseAnimator?.cancel()
+        pulseAnimator = null
+        pulsingCircle.scaleX = 1f
+        pulsingCircle.scaleY = 1f
+        pulsingCircle.alpha = 0.6f
+    }
+    
+    private fun updateButtonState() {
+        if (isListening) {
+            voiceButton.setImageResource(android.R.drawable.ic_media_pause)
+            voiceButton.backgroundTintList = ContextCompat.getColorStateList(this, R.color.voice_button_listening)
+        } else {
+            voiceButton.setImageResource(android.R.drawable.ic_btn_speak_now)
+            voiceButton.backgroundTintList = ContextCompat.getColorStateList(this, R.color.voice_button_color)
+        }
     }
     
     private fun processUserRequest(text: String) {
@@ -241,8 +370,8 @@ class MainActivity : AppCompatActivity() {
                         line-height: 1.5;
                     }
                     button {
-                        background: #667eea;
-                        color: white;
+                        background: #FFC107;
+                        color: #333;
                         border: none;
                         padding: 12px 24px;
                         border-radius: 5px;
@@ -271,6 +400,9 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         webView.onPause()
         speechHelper.cancel()
+        isListening = false
+        hideListeningIndicator()
+        updateButtonState()
     }
     
     override fun onResume() {
