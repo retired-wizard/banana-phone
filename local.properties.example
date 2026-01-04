@@ -1,0 +1,10 @@
+## OpenRouter Configuration
+## Copy this file to local.properties and fill in your values
+## local.properties is in .gitignore and will not be committed
+
+# OpenRouter API Key (get from https://openrouter.ai/keys)
+OPENROUTER_API_KEY=your_api_key_here
+
+# OpenRouter Model (e.g., "openai/gpt-4", "anthropic/claude-3-sonnet", "openai/gpt-3.5-turbo")
+OPENROUTER_MODEL=openai/gpt-4
+

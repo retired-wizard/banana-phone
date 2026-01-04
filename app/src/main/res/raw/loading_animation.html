@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building your app...</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            text-align: center;
+            color: white;
+        }
+        
+        .banana-container {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+        }
+        
+        .banana {
+            position: absolute;
+            width: 60px;
+            height: 100px;
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: rotate 2s linear infinite;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .banana::before {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 60px;
+            background: linear-gradient(135deg, #ffed4e 0%, #ffd700 100%);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            top: -10px;
+            left: 10px;
+            opacity: 0.8;
+        }
+        
+        .banana::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #8b6914;
+            border-radius: 50%;
+            top: 15px;
+            left: 26px;
+        }
+        
+        @keyframes rotate {
+            0% {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+        
+        .text {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .subtext {
+            font-size: 16px;
+            opacity: 0.9;
+            animation: fade 3s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.8;
+                transform: scale(1.05);
+            }
+        }
+        
+        @keyframes fade {
+            0%, 100% {
+                opacity: 0.9;
+            }
+            50% {
+                opacity: 0.6;
+            }
+        }
+        
+        .dots {
+            display: inline-block;
+            width: 20px;
+            margin-left: 5px;
+        }
+        
+        .dots::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% {
+                content: '.';
+            }
+            40% {
+                content: '..';
+            }
+            60%, 100% {
+                content: '...';
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="banana-container">
+            <div class="banana"></div>
+        </div>
+        <div class="text">Building your app<span class="dots"></span></div>
+        <div class="subtext">This may take a moment</div>
+    </div>
+</body>
+</html>
+
